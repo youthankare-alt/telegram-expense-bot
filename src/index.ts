@@ -508,7 +508,7 @@ Struktur JSON yang WAJIB dipatuhi:
         }
       });
 
-      return webhookCallback(bot, "cloudflare-worker")(request);
+      return webhookCallback(bot, "cloudflare-mod")(request);
     }
 
     return new Response("Bot is active and running!", { status: 200 });
