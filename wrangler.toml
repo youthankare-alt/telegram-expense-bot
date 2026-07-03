@@ -1,0 +1,12 @@
+name = "telegram-expense-bot"
+main = "src/index.ts"
+compatibility_date = "2024-05-29"
+
+[ai]
+binding = "AI"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "expense_tracker_db"
+database_id = "aec46d59-c6a2-40eb-af2f-0de7e75373dc"
+migrations_dir = "migrations"
