@@ -57,6 +57,7 @@ export default {
     if (url.pathname === "/webhook") {
       const bot = new Bot<any>(env.BOT_TOKEN);
 
+      // Register User Middleware
       bot.use(async (ctx, next) => {
         if (ctx.from) {
           await ensureUser(env.DB, ctx.from.id, ctx.from.username);
@@ -88,6 +89,18 @@ export default {
           `• /chart - Laporan keuangan visual dilengkapi persentase.\n\n` +
           `💡 *Tips:* Cukup kirimkan foto struk belanja untuk deteksi otomatis via AI!`;
         await ctx.reply(helpText, { parse_mode: "Markdown" });
+      });
+
+      // Command Manual /agree untuk aktivasi lisensi Llama 3.2 Vision
+      bot.command("agree", async (ctx) => {
+        try {
+          await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
+            prompt: "agree"
+          });
+          await ctx.reply("✅ *Lisensi Meta Llama 3.2 berhasil disetujui!*\nKini Anda sudah bisa melakukan scan struk menggunakan AI dengan lancar.", { parse_mode: "Markdown" });
+        } catch (err: any) {
+          await ctx.reply(`❌ Gagal memproses persetujuan lisensi: ${err.message}`);
+        }
       });
 
       // Command /add Manual
@@ -238,10 +251,29 @@ Struktur JSON yang WAJIB dipatuhi:
   "description": "<singkat, tuliskan nama merchant atau barang dominan dibeli, maksimal 40 karakter>"
 }`;
 
-          const aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
-            prompt: systemPrompt,
-            image: [...new Uint8Array(imageBuffer)]
-          });
+          let aiResponse;
+          try {
+            aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
+              prompt: systemPrompt,
+              image: [...new Uint8Array(imageBuffer)]
+            });
+          } catch (aiErr: any) {
+            // Guardrail Otomatis: Deteksi error 5016 (Meta License Agreement)
+            if (aiErr.message && aiErr.message.includes("5016")) {
+              // Kirim sinyal persetujuan lisensi otomatis ke Cloudflare
+              await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
+                prompt: "agree"
+              });
+              
+              // Coba jalankan ulang analisis struk belanja
+              aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
+                prompt: systemPrompt,
+                image: [...new Uint8Array(imageBuffer)]
+              });
+            } else {
+              throw aiErr;
+            }
+          }
 
           let textResult = "";
           if (typeof aiResponse === "string") {
@@ -398,7 +430,7 @@ Struktur JSON yang WAJIB dipatuhi:
         }
       });
 
-      // Inline Buttons Action Routing
+      // Interactive Action Router
       bot.on("callback_query:data", async (ctx) => {
         const data = ctx.callbackQuery.data;
         const userId = ctx.from.id;
