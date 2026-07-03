@@ -15,10 +15,10 @@ const CATEGORIES: Record<string, { label: string; emoji: string }> = {
   Others: { label: "Lainnya", emoji: "📦" }
 };
 
-// Validated Parser Rupiah - Menghindari bug fatal parseFloat("150.000") -> 150 di JS
+// Validated Parser Rupiah - Menghindari bug parseFloat("150.000") -> 150 di JS
 function parseRupiahInput(text: string): number {
-  let cleaned = text.trim().replace(/[,.]00$/, ""); // Hapus sen desimal di akhir jika ada
-  cleaned = cleaned.replace(/\D/g, ""); // Hapus seluruh karakter non-angka
+  let cleaned = text.trim().replace(/[,.]00$/, ""); 
+  cleaned = cleaned.replace(/\D/g, ""); 
   const amount = parseInt(cleaned, 10);
   return isNaN(amount) ? 0 : amount;
 }
@@ -70,7 +70,7 @@ export default {
         const text = `👋 *Halo! Selamat datang di AI Expense Tracker Bot!*\n\n` +
           `Bot ini berjalan 100% gratis di Cloudflare Edge Server via GitHub CI/CD.\n\n` +
           `🤖 *Fitur Utama:*\n` +
-          `1. 📸 *Scan Struk Belanja:* Kirim foto struk, AI akan mendeteksinya otomatis!\n` +
+          `1. 📸 *Scan Struk Belanja:* Cukup kirim foto struk, AI Google Gemma 4 akan memprosesnya secara instan!\n` +
           `2. 📝 *Manual Input:* Tambahkan pengeluaran manual via tombol /add.\n` +
           `3. 📊 *Grafik Pengeluaran:* Ketik /chart untuk melihat visualisasi bulanan.\n` +
           `4. 🎯 *Set Budget:* Pantau limit belanja kategori bulanan via /budgets.\n\n` +
@@ -89,18 +89,6 @@ export default {
           `• /chart - Laporan keuangan visual dilengkapi persentase.\n\n` +
           `💡 *Tips:* Cukup kirimkan foto struk belanja untuk deteksi otomatis via AI!`;
         await ctx.reply(helpText, { parse_mode: "Markdown" });
-      });
-
-      // Command Manual /agree untuk aktivasi lisensi Llama 3.2 Vision
-      bot.command("agree", async (ctx) => {
-        try {
-          await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
-            prompt: "agree"
-          });
-          await ctx.reply("✅ *Lisensi Meta Llama 3.2 berhasil disetujui!*\nKini Anda sudah bisa melakukan scan struk menggunakan AI dengan lancar.", { parse_mode: "Markdown" });
-        } catch (err: any) {
-          await ctx.reply(`❌ Gagal memproses persetujuan lisensi: ${err.message}`);
-        }
       });
 
       // Command /add Manual
@@ -228,10 +216,10 @@ export default {
         await ctx.reply(chartText, { parse_mode: "Markdown" });
       });
 
-      // OCR Vision Scanner
+      // OCR Vision Scanner (Powered by Google Gemma 4 MoE)
       bot.on("message:photo", async (ctx) => {
         const userId = ctx.from?.id;
-        const waitingMsg = await ctx.reply("⏳ *Sedang membaca struk belanja Anda menggunakan AI... Mohon tunggu.*", { parse_mode: "Markdown" });
+        const waitingMsg = await ctx.reply("⏳ *Sedang membaca struk belanja Anda menggunakan Google Gemma 4 AI...*", { parse_mode: "Markdown" });
 
         try {
           const photos = ctx.message.photo;
@@ -251,35 +239,35 @@ Struktur JSON yang WAJIB dipatuhi:
   "description": "<singkat, tuliskan nama merchant atau barang dominan dibeli, maksimal 40 karakter>"
 }`;
 
-          let aiResponse;
-          try {
-            aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
-              prompt: systemPrompt,
-              image: [...new Uint8Array(imageBuffer)]
-            });
-          } catch (aiErr: any) {
-            // Guardrail Otomatis: Deteksi error 5016 (Meta License Agreement)
-            if (aiErr.message && aiErr.message.includes("5016")) {
-              // Kirim sinyal persetujuan lisensi otomatis ke Cloudflare
-              await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
-                prompt: "agree"
-              });
-              
-              // Coba jalankan ulang analisis struk belanja
-              aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
-                prompt: systemPrompt,
-                image: [...new Uint8Array(imageBuffer)]
-              });
-            } else {
-              throw aiErr;
-            }
-          }
+          // Standardized OpenAI-Compatible Multimodal Payload for Workers AI
+          const aiResponse = await env.AI.run("@cf/google/gemma-4-26b-a4b-it", {
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: systemPrompt
+                  },
+                  {
+                    type: "image",
+                    image: [...new Uint8Array(imageBuffer)]
+                  }
+                ]
+              }
+            ]
+          });
 
+          // Defensive Parsing Parser untuk mengantisipasi variasi tipe output platform Cloudflare
           let textResult = "";
           if (typeof aiResponse === "string") {
             textResult = aiResponse;
-          } else if (aiResponse && typeof aiResponse === "object" && "response" in aiResponse) {
-            textResult = aiResponse.response;
+          } else if (aiResponse && typeof aiResponse === "object") {
+            if ("response" in aiResponse) {
+              textResult = aiResponse.response;
+            } else if ("choices" in aiResponse && Array.isArray(aiResponse.choices) && aiResponse.choices.length > 0) {
+              textResult = aiResponse.choices[0].message?.content || "";
+            }
           }
 
           const jsonStart = textResult.indexOf("{");
@@ -315,7 +303,7 @@ Struktur JSON yang WAJIB dipatuhi:
 
           await ctx.api.deleteMessage(ctx.chat.id, waitingMsg.message_id);
           await ctx.reply(
-            `🤖 *HASIL DETEKSI STRUK (AI)*\n` +
+            `🤖 *HASIL DETEKSI STRUK (AI GEMMA 4)*\n` +
             `-----------------------------------\n` +
             `💰 *Nominal:* ${formatRupiah(amount)}\n` +
             `🏷️ *Kategori:* ${cat.emoji} ${cat.label}\n` +
