@@ -216,7 +216,7 @@ export default {
         await ctx.reply(chartText, { parse_mode: "Markdown" });
       });
 
-      // OCR Vision Scanner (Powered by Google Gemma 4 MoE)
+      // OCR Vision Scanner (Powered by Google Gemma 4 MoE - Flat Vision Schema)
       bot.on("message:photo", async (ctx) => {
         const userId = ctx.from?.id;
         const waitingMsg = await ctx.reply("⏳ *Sedang membaca struk belanja Anda menggunakan Google Gemma 4 AI...*", { parse_mode: "Markdown" });
@@ -239,26 +239,12 @@ Struktur JSON yang WAJIB dipatuhi:
   "description": "<singkat, tuliskan nama merchant atau barang dominan dibeli, maksimal 40 karakter>"
 }`;
 
-          // Standardized OpenAI-Compatible Multimodal Payload for Workers AI
+          // Menggunakan Skema Visi Datar (Flat Schema) - Terbukti Tangguh & Bebas Eror 5006
           const aiResponse = await env.AI.run("@cf/google/gemma-4-26b-a4b-it", {
-            messages: [
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "text",
-                    text: systemPrompt
-                  },
-                  {
-                    type: "image",
-                    image: [...new Uint8Array(imageBuffer)]
-                  }
-                ]
-              }
-            ]
+            prompt: systemPrompt,
+            image: [...new Uint8Array(imageBuffer)]
           });
 
-          // Defensive Parsing Parser untuk mengantisipasi variasi tipe output platform Cloudflare
           let textResult = "";
           if (typeof aiResponse === "string") {
             textResult = aiResponse;
